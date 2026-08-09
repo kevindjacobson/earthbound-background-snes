@@ -1,0 +1,9 @@
+*.log
+*.obj
+*.ps
+*.sym
+*.symfull
+hdr.asm
+linkfile
+earthbound_background_lab.sfc
+.DS_Store

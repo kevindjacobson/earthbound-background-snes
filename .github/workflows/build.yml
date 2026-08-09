@@ -1,0 +1,44 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download PVSnesLib 4.6.0
+        run: |
+          curl --fail --location --retry 3 \
+            --output /tmp/pvsneslib.zip \
+            https://github.com/alekmaul/pvsneslib/releases/download/4.6.0/pvsneslib_460_64b_linux_release.zip
+          unzip -q /tmp/pvsneslib.zip -d /tmp/pvsneslib
+
+      - name: Test generated data and controller state
+        run: |
+          make generate
+          make host-test
+        env:
+          PVSNESLIB_HOME: /tmp/pvsneslib/pvsneslib
+
+      - name: Build ROM
+        run: make buildActual
+        env:
+          PVSNESLIB_HOME: /tmp/pvsneslib/pvsneslib
+
+      - name: Inspect ROM
+        run: |
+          test "$(stat --format=%s earthbound_background_lab.sfc)" = 1048576
+          sha256sum earthbound_background_lab.sfc
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: earthbound-background-lab-snes
+          path: earthbound_background_lab.sfc
