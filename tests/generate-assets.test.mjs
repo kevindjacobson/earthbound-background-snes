@@ -26,7 +26,13 @@ assert.deepEqual(result, { graphicsCount: 103, layerCount: 327 });
 assert.equal(fs.statSync(path.join(temporary, "assets/gfx_000.bin")).size, 32);
 assert.equal(fs.statSync(path.join(temporary, "assets/map_000.bin")).size, 2048);
 assert.match(fs.readFileSync(path.join(temporary, "data.asm"), "utf8"), /gfx_102:/);
-assert.match(fs.readFileSync(path.join(temporary, "generated_assets.c"), "utf8"), /case 102: return &gfx_102;/);
+const generatedHeader = fs.readFileSync(path.join(temporary, "generated_assets.h"), "utf8");
+const generatedSource = fs.readFileSync(path.join(temporary, "generated_assets.c"), "utf8");
+assert.match(generatedHeader, /frequency_acceleration/);
+assert.match(generatedHeader, /amplitude_acceleration/);
+assert.match(generatedHeader, /compression_acceleration/);
+assert.match(generatedSource, /case 102: return &gfx_102;/);
+assert.match(generatedSource, /\{3, 512, -256, 0, 0, 0, -128, 0\}/);
 
 fs.rmSync(temporary, { recursive: true });
 console.log("asset generator tests passed");

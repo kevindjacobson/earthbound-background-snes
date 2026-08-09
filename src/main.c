@@ -1,5 +1,6 @@
 #include <snes.h>
 
+#include "distortion.h"
 #include "generated_assets.h"
 #include "state.h"
 
@@ -10,11 +11,20 @@
 #define BG2_GFX 0x2000
 #define BG1_MAP 0x7000
 #define BG2_MAP 0x7400
+#define BG3_GFX 0x4000
+#define BG3_MAP 0x7800
+#define HDMA_CHANNELS (HDMA_CHANNEL4 | HDMA_CHANNEL5)
+#define WRAM_BANK 0x7e
+#define REG_DASB4 (*(vuint8 *)0x4347)
+#define REG_DASB5 (*(vuint8 *)0x4357)
 
 static EbState state;
+static u16 frame_number;
 static u16 map_buffer[1024];
 static u16 palette_buffer[16];
-static u16 frame_number;
+static u16 subscreen_backdrop;
+static u16 hdma_values[2][2][EB_VISIBLE_LINES];
+static u8 hdma_descriptors[2][EB_HDMA_DESCRIPTOR_SIZE];
 
 static u16 translate_keys(u16 keys)
 {
@@ -108,6 +118,66 @@ static void load_palette(u8 slot, u16 layer_id, u16 frame)
     dmaCopyCGram((u8 *)palette_buffer, slot << 4, 32);
 }
 
+static void load_subscreen_backdrop(const EbLayerSpec *layer)
+{
+    u16 index;
+
+    for (index = 0; index < 8; ++index) map_buffer[index] = 0x00ff;
+    dmaCopyVram((u8 *)map_buffer, BG3_GFX, 16);
+    for (index = 0; index < 1024; ++index) map_buffer[index] = 0x1c00;
+    dmaCopyVram((u8 *)map_buffer, BG3_MAP, sizeof(map_buffer));
+
+    subscreen_backdrop = eb_palettes[layer->palette][0];
+    dmaCopyCGram((u8 *)&subscreen_backdrop, 113, 2);
+    bgSetGfxPtr(2, BG3_GFX);
+    bgSetMapPtr(2, BG3_MAP, SC_32x32);
+}
+
+static void distortion_params(u8 slot, EbDistortionParams *params)
+{
+    const EbLayerSpec *layer = &eb_layers[state.layer[slot]];
+    const EbEffectSpec *effect = &eb_effects[layer->effect];
+
+    params->type = effect->type;
+    params->frequency = effect->frequency + state.frequency[slot];
+    params->amplitude = effect->amplitude + state.amplitude[slot];
+    params->compression = effect->compression + state.compression[slot];
+    params->speed = (s8)(effect->speed + state.speed[slot]);
+    params->frequency_acceleration = effect->frequency_acceleration;
+    params->amplitude_acceleration = effect->amplitude_acceleration;
+    params->compression_acceleration = effect->compression_acceleration;
+}
+
+static void build_hdma_layer(u8 buffer, u8 slot, u16 frame)
+{
+    EbDistortionParams params;
+    distortion_params(slot, &params);
+    eb_distortion_build(hdma_values[buffer][slot], &params, frame, 0);
+}
+
+static void select_hdma_layer(u8 slot, u8 buffer)
+{
+    eb_hdma_descriptor(hdma_descriptors[slot], (u16)hdma_values[buffer][slot]);
+}
+
+static void configure_hdma(void)
+{
+    const EbEffectSpec *first = &eb_effects[eb_layers[state.layer[0]].effect];
+    const EbEffectSpec *second = &eb_effects[eb_layers[state.layer[1]].effect];
+
+    REG_HDMAEN = 0;
+    REG_DMAP4 = 0x42;
+    REG_BBAD4 = first->type == 3 ? 0x0e : 0x0d;
+    REG_A1T4LH = (u16)hdma_descriptors[0];
+    REG_A1B4 = WRAM_BANK;
+    REG_DASB4 = WRAM_BANK;
+    REG_DMAP5 = 0x42;
+    REG_BBAD5 = second->type == 3 ? 0x10 : 0x0f;
+    REG_A1T5LH = (u16)hdma_descriptors[1];
+    REG_A1B5 = WRAM_BANK;
+    REG_DASB5 = WRAM_BANK;
+}
+
 static void load_layers(void)
 {
     const EbLayerSpec *first = &eb_layers[state.layer[0]];
@@ -127,16 +197,25 @@ static void load_layers(void)
     load_map(second->graphics, 1, BG2_MAP);
     load_palette(0, state.layer[0], frame_number);
     load_palette(1, state.layer[1], frame_number);
+    load_subscreen_backdrop(second);
+
+    bgSetScroll(BG_LAYER_1, 0, 0);
+    bgSetScroll(BG_LAYER_2, 0, 0);
+    build_hdma_layer(0, 0, frame_number);
+    build_hdma_layer(0, 1, frame_number);
+    select_hdma_layer(0, 0);
+    select_hdma_layer(1, 0);
+    configure_hdma();
 
     bgSetEnable(BG_LAYER_1);
     bgSetEnable(BG_LAYER_2);
-    bgSetDisable(2);
+    bgSetEnable(2);
     bgSetDisable(3);
 
     REG_TM = 0x01;
-    REG_TS = 0x02;
+    REG_TS = 0x06;
     REG_CGWSEL = 0x02;
-    REG_CGADSUB = 0x41;
+    REG_CGADSUB = 0x61;
 }
 
 static void draw_parameter_name(u8 parameter)
@@ -198,29 +277,16 @@ static void show_debug(void)
     draw_debug();
 }
 
-static s16 triangle_wave(u16 phase)
-{
-    u8 x = (u8)phase;
-    if (x < 64) return x;
-    if (x < 192) return 128 - x;
-    return x - 256;
-}
-
-static void animate_layer(u8 screen, u16 layer_id, u8 slot)
-{
-    const EbLayerSpec *layer = &eb_layers[layer_id];
-    const EbEffectSpec *effect = &eb_effects[layer->effect];
-    s16 speed = effect->speed + state.speed[slot];
-    s16 amplitude = (effect->amplitude + state.amplitude[slot]) >> 8;
-    s16 frequency = (effect->frequency + state.frequency[slot]) >> 8;
-    u16 x = (u16)((frame_number * speed) >> 2);
-    u16 y = (u16)((triangle_wave(frame_number * frequency) * amplitude) >> 6);
-    bgSetScroll(screen, x, y);
-}
-
 int main(void)
 {
     u16 pressed;
+    u16 queued_frame = 0;
+    u8 current_buffer[2];
+    u8 hdma_pending = 1;
+    u8 next_slot = 0;
+    u8 queued_slot = 2;
+    current_buffer[0] = 0;
+    current_buffer[1] = 0;
     frame_number = 0;
     eb_state_init(&state);
     setScreenOff();
@@ -230,13 +296,35 @@ int main(void)
 
     while (1) {
         WaitForVBlank();
+        if (queued_slot < 2 && !state.debug_visible) {
+            current_buffer[queued_slot] ^= 1;
+            select_hdma_layer(queued_slot, current_buffer[queued_slot]);
+            if (queued_slot == 1) {
+                frame_number = queued_frame;
+                load_palette(0, state.layer[0], frame_number);
+                load_palette(1, state.layer[1], frame_number);
+            }
+            queued_slot = 2;
+        }
+        if (hdma_pending && !state.debug_visible) {
+            REG_HDMAEN = HDMA_CHANNELS;
+            hdma_pending = 0;
+        }
         pressed = translate_keys(padsDown(0));
         if (pressed) eb_state_press(&state, pressed);
 
         if (state.layers_dirty) {
+            REG_HDMAEN = 0;
             setScreenOff();
             if (state.debug_visible) show_debug();
-            else load_layers();
+            else {
+                load_layers();
+                current_buffer[0] = 0;
+                current_buffer[1] = 0;
+                next_slot = 0;
+                queued_slot = 2;
+                hdma_pending = 1;
+            }
             state.layers_dirty = 0;
             setScreenOn();
         } else if (state.debug_visible && pressed) {
@@ -244,12 +332,12 @@ int main(void)
         }
 
         if (!state.debug_visible && !state.paused) {
-            ++frame_number;
-            animate_layer(BG_LAYER_1, state.layer[0], 0);
-            animate_layer(BG_LAYER_2, state.layer[1], 1);
-            if ((frame_number & 7) == 0) {
-                load_palette(0, state.layer[0], frame_number);
-                load_palette(1, state.layer[1], frame_number);
+            if (queued_slot == 2) {
+                queued_frame = frame_number + 1;
+                queued_slot = next_slot;
+                build_hdma_layer(current_buffer[queued_slot] ^ 1,
+                                 queued_slot, queued_frame);
+                next_slot ^= 1;
             }
         }
     }
