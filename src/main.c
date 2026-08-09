@@ -139,16 +139,15 @@ static void load_layers(void)
     REG_CGADSUB = 0x41;
 }
 
-static const char *parameter_name(u8 parameter)
+static void draw_parameter_name(u8 parameter)
 {
-    switch ((EbParameter)parameter) {
-    case EB_PARAM_LAYER: return "LAYER";
-    case EB_PARAM_SPEED: return "SPEED";
-    case EB_PARAM_AMPLITUDE: return "AMPLITUDE";
-    case EB_PARAM_FREQUENCY: return "FREQUENCY";
-    case EB_PARAM_COMPRESSION: return "COMPRESSION";
-    default: return "?";
-    }
+    if (parameter == EB_PARAM_LAYER) consoleDrawText(7, 15, "LAYER      ");
+    else if (parameter == EB_PARAM_SPEED) consoleDrawText(7, 15, "SPEED      ");
+    else if (parameter == EB_PARAM_AMPLITUDE) consoleDrawText(7, 15, "AMPLITUDE  ");
+    else if (parameter == EB_PARAM_FREQUENCY) consoleDrawText(7, 15, "FREQUENCY  ");
+    else if (parameter == EB_PARAM_COMPRESSION) consoleDrawText(7, 15, "COMPRESSION");
+    else consoleDrawText(7, 15, "?          ");
+    consoleDrawText(20, 15, "[%u]", (u16)parameter);
 }
 
 static void draw_debug(void)
@@ -159,20 +158,27 @@ static void draw_debug(void)
     const EbEffectSpec *effect_2 = &eb_effects[second->effect];
 
     consoleDrawText(1, 1, "EARTHBOUND BACKGROUND LAB");
-    consoleDrawText(1, 3, "%c LAYER 1: %03u GFX %03u PAL %03u", state.selected_layer == 0 ? '>' : ' ', state.layer[0], first->graphics, first->palette);
-    consoleDrawText(1, 4, "  EFFECT %03u TYPE %u", first->effect, effect_1->type);
-    consoleDrawText(1, 5, "  SPD %d AMP %d FRQ %d", effect_1->speed + state.speed[0], effect_1->amplitude + state.amplitude[0], effect_1->frequency + state.frequency[0]);
-    consoleDrawText(1, 7, "%c LAYER 2: %03u GFX %03u PAL %03u", state.selected_layer == 1 ? '>' : ' ', state.layer[1], second->graphics, second->palette);
-    consoleDrawText(1, 8, "  EFFECT %03u TYPE %u", second->effect, effect_2->type);
-    consoleDrawText(1, 9, "  SPD %d AMP %d FRQ %d", effect_2->speed + state.speed[1], effect_2->amplitude + state.amplitude[1], effect_2->frequency + state.frequency[1]);
-    consoleDrawText(1, 11, "EDIT: %-11s", parameter_name(state.selected_parameter));
-    consoleDrawText(1, 12, "ANIMATION: %s", state.paused ? "PAUSED " : "RUNNING");
-    consoleDrawText(1, 15, "L/R       SELECT LAYER");
-    consoleDrawText(1, 16, "SELECT    SELECT PARAMETER");
-    consoleDrawText(1, 17, "D-PAD A/B CHANGE VALUE");
-    consoleDrawText(1, 18, "X         RANDOM PAIR");
-    consoleDrawText(1, 19, "Y         PAUSE");
-    consoleDrawText(1, 20, "START     BACKGROUND");
+    consoleDrawText(1, 3, state.selected_layer == 0 ? ">" : " ");
+    consoleDrawText(3, 3, "LAYER 1  ID %03u", state.layer[0]);
+    consoleDrawText(1, 4, "  GFX %03u PAL %03u BPP %u", (u16)first->graphics, (u16)first->palette, (u16)first->bits_per_pixel);
+    consoleDrawText(1, 5, "  FX %03u TYPE %u", (u16)first->effect, (u16)effect_1->type);
+    consoleDrawText(1, 6, "  SPD %d AMP %d", effect_1->speed + state.speed[0], effect_1->amplitude + state.amplitude[0]);
+    consoleDrawText(1, 7, "  FREQ %d COMP %d", effect_1->frequency + state.frequency[0], effect_1->compression + state.compression[0]);
+    consoleDrawText(1, 9, state.selected_layer == 1 ? ">" : " ");
+    consoleDrawText(3, 9, "LAYER 2  ID %03u", state.layer[1]);
+    consoleDrawText(1, 10, "  GFX %03u PAL %03u BPP %u", (u16)second->graphics, (u16)second->palette, (u16)second->bits_per_pixel);
+    consoleDrawText(1, 11, "  FX %03u TYPE %u", (u16)second->effect, (u16)effect_2->type);
+    consoleDrawText(1, 12, "  SPD %d AMP %d", effect_2->speed + state.speed[1], effect_2->amplitude + state.amplitude[1]);
+    consoleDrawText(1, 13, "  FREQ %d COMP %d", effect_2->frequency + state.frequency[1], effect_2->compression + state.compression[1]);
+    consoleDrawText(1, 15, "EDIT:");
+    draw_parameter_name(state.selected_parameter);
+    consoleDrawText(1, 16, "ANIMATION: %s", state.paused ? "PAUSED " : "RUNNING");
+    consoleDrawText(1, 18, "L/R       SELECT LAYER");
+    consoleDrawText(1, 19, "SELECT    SELECT PARAMETER");
+    consoleDrawText(1, 20, "D-PAD A/B CHANGE VALUE");
+    consoleDrawText(1, 21, "X         RANDOM PAIR");
+    consoleDrawText(1, 22, "Y         PAUSE");
+    consoleDrawText(1, 23, "START     BACKGROUND");
 }
 
 static void show_debug(void)

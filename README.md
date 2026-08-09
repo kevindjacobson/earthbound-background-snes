@@ -43,6 +43,16 @@ This boots the ROM, exercises Start, Select, R, and A, and checks that Mesen pro
 
 Real-hardware behavior has not yet been checked on a SNES or flash cartridge.
 
+## Examples
+
+The [eight-second emulator capture](examples/earthbound-background-lab-demo.mp4) changes the pair, opens the debug screen, selects layer 2, raises its speed, returns to the background, and changes the pair again.
+
+![Default layer pair](examples/pair-50-300.png)
+
+![Random layer pair](examples/random-pair.png)
+
+![Debug screen with layer 2 selected](examples/debug-layer-2.png)
+
 ## Provenance
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the extracted background-data source and license record. Game names and original game assets belong to their respective owners; this is an independent technical project.
