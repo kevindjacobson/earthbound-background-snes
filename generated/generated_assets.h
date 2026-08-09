@@ -233,7 +233,10 @@ typedef struct {
     int16_t frequency;
     int16_t amplitude;
     int16_t compression;
-    int16_t speed;
+    int8_t speed;
+    int16_t frequency_acceleration;
+    int16_t amplitude_acceleration;
+    int16_t compression_acceleration;
 } EbEffectSpec;
 
 extern const uint16_t eb_graphics_lengths[EB_GRAPHICS_COUNT];

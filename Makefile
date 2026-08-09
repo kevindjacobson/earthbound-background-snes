@@ -11,7 +11,7 @@ CFLAGS += -I$(CURDIR)/src -I$(CURDIR)/generated
 
 include ${PVSNESLIB_HOME}/devkitsnes/snes_rules
 
-OFILES += generated/generated_assets.obj generated/data.obj
+OFILES += src/distortion_snes.obj generated/generated_assets.obj generated/data.obj
 
 .PHONY: all clean generate host-test test
 
@@ -24,6 +24,8 @@ generate:
 host-test:
 	cc -std=c99 -Wall -Wextra -Werror -Isrc tests/state_test.c src/state.c -o /tmp/earthbound-state-test
 	/tmp/earthbound-state-test
+	cc -std=c99 -Wall -Wextra -Werror -Isrc tests/distortion_test.c src/distortion.c -o /tmp/earthbound-distortion-test
+	/tmp/earthbound-distortion-test
 	node tests/generate-assets.test.mjs
 
 test: host-test

@@ -2,7 +2,9 @@
 
 A controller-driven SNES ROM for exploring EarthBound battle-background layers. It carries the complete 327-layer catalog and native tile, arrangement, palette, and effect data in a 1 MiB LoROM image.
 
-The current renderer uses the SNES PPU directly: two Mode 1 backgrounds, native color math for the blend, palette cycling, and lightweight motion derived from each layer's effect parameters. It does not yet reproduce EarthBound's scanline distortion exactly; that needs an HDMA pass.
+The renderer follows the original game's hardware design: two Mode 1 backgrounds, SNES color math, palette cycling, and per-scanline HDMA writes to each layer's horizontal or vertical scroll register. It supports smooth horizontal, interlaced horizontal, and smooth vertical distortion, including frequency, amplitude, compression, speed, and their acceleration fields.
+
+The hot scanline loop is 65816 assembly and uses the PPU's Mode 7 multiplier. Two WRAM buffers per layer keep HDMA away from a table while it is being rebuilt. A small opaque BG3 fallback preserves half-color blending when the second layer uses palette index zero.
 
 ## Controls
 
@@ -32,20 +34,23 @@ The ROM is written to `earthbound_background_lab.sfc`.
 
 ## Verification
 
-Host tests cover controller state, wraparound, random selection, and asset conversion. The ROM is also built in GitHub Actions. For a local emulator smoke test:
+Host tests cover controller state, wraparound, random selection, asset conversion, distortion math, and HDMA descriptors. The ROM is also built in GitHub Actions. For local emulator checks:
 
 ```sh
 /path/to/Mesen --testrunner --timeout=10 \
   tests/mesen-smoke.lua earthbound_background_lab.sfc
+
+/path/to/Mesen --testrunner --timeout=10 \
+  tests/mesen-animation.lua earthbound_background_lab.sfc
 ```
 
-This boots the ROM, exercises Start, Select, R, and A, and checks that Mesen produces a non-uniform PNG frame after 150 frames.
+The smoke script exercises Start, Select, R, and A and checks both the debug screen and a rendered background. The animation script checks that scanline tables keep advancing under emulation instead of merely producing one valid frame.
 
 Real-hardware behavior has not yet been checked on a SNES or flash cartridge.
 
 ## Examples
 
-The [eight-second emulator capture](examples/earthbound-background-lab-demo.mp4) changes the pair, opens the debug screen, selects layer 2, raises its speed, returns to the background, and changes the pair again.
+The [ten-second emulator capture](examples/earthbound-background-lab-demo.mp4) changes the pair, opens the debug screen, selects layer 2, raises its speed, returns to the background, and changes the pair again.
 
 ![Default layer pair](examples/pair-50-300.png)
 
@@ -56,3 +61,5 @@ The [eight-second emulator capture](examples/earthbound-background-lab-demo.mp4)
 ## Provenance
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the extracted background-data source and license record. Game names and original game assets belong to their respective owners; this is an independent technical project.
+
+The HDMA implementation was checked against Herringway's EarthBound disassembly, particularly [`PREPARE_BG_OFFSET_TABLES`](https://github.com/Herringway/ebsrc/blob/0197d6c13ef11ad3280e9388e08a646ab1030d15/src/misc/battlebgs/prepare_bg_offset_tables.asm) and [`DO_BATTLEBG_DMA`](https://github.com/Herringway/ebsrc/blob/0197d6c13ef11ad3280e9388e08a646ab1030d15/src/misc/battlebgs/do_battlebg_dma.asm). The table layout follows the [SNESdev HDMA examples](https://snes.nesdev.org/wiki/HDMA_examples).

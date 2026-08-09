@@ -16,20 +16,20 @@ end
 
 emu.addEventCallback(function()
     local input = {
-        a = frame >= 75 and frame < 78,
-        r = frame >= 70 and frame < 73,
-        select = frame >= 55 and frame < 58,
-        start = (frame >= 30 and frame < 34) or (frame >= 100 and frame < 104),
+        a = frame >= 95 and frame < 99,
+        r = frame >= 85 and frame < 89,
+        select = frame >= 75 and frame < 79,
+        start = (frame >= 50 and frame < 54) or (frame >= 110 and frame < 114),
     }
     emu.setInput(input, 0)
 end, emu.eventType.inputPolled)
 
 emu.addEventCallback(function()
     frame = frame + 1
-    if frame == 50 then
+    if frame == 70 then
         debug_color_count = color_count(emu.getScreenBuffer())
     end
-    if frame == 150 then
+    if frame == 200 then
         local png = emu.takeScreenshot()
         local pixels = emu.getScreenBuffer()
         local background_color_count = color_count(pixels)
